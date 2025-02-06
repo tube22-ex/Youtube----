@@ -1,13 +1,13 @@
 ##ダウンロード
 
 1. 「[Releases](https://github.com/tube22-ex/YoutubeChatHistoryViewer/releases/latest)」にある「x.x.zip」をダウンロードし解凍
+※ Codeタブから個別にダウンロードするとフォルダ構造を再現する手間がかかるのでおすすめしません。フォルダ構造を再現しない限りエラーで動きません。
 
 ##チャットデータの用意
 1. [Google Takeout](https://takeout.google.com/settings/takeout/custom/youtube
 ) で「YouTubeのすべてのデータが含まれます」をクリックし「チャット」にのみチェックを入れてエクスポートを作成
 2. しばらくするとリンクがメールに届くので適当な場所にダウンロードし解凍
 3. 「takeout-xxxxx-000」> 「Takeout」 > 「YouTube と YouTube Music」 > 「チャット」にチャット.csvがあるを確認し、「チャット」までのパスをコピー
-
 
 ##実行
 1. 「main.exe」を実行
