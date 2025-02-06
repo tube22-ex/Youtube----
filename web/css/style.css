@@ -1,0 +1,131 @@
+body{
+    color: black;
+    display: flex;
+}
+
+#contents{
+    width: 70%;
+    font-size: 25px;
+}
+
+.content{
+    margin-bottom: 10px;
+}
+.comment{
+    border-bottom: solid 3px grey;
+    display: flex;
+    flex-wrap: wrap; /* 改行を許可 */
+    align-items: flex-start; /* 要素が上に揃う */
+}
+
+.timeStamp{
+    background-color: #b6b9ff;
+    display: block; /* ブロック要素にして高さを適切に調整 */
+    margin-right: 10px; /* タイムスタンプと本文の間にスペース */
+    white-space: nowrap; /* タイムスタンプ内で折り返しを防止 */
+    height: 100%; /* 要素の高さを最大に */
+    flex-shrink: 0; /* タイムスタンプが縮まないようにする */
+}
+
+.chat{
+    word-wrap: break-word; /* 長い単語がある場合に折り返し */
+    white-space: pre-wrap; /* 改行を維持 */
+    flex-grow: 1; /* 残りのスペースを取る */
+}
+
+.commentsData{
+    background-color: rgb(222, 222, 222);
+    overflow-y: scroll;
+    overflow-x: hidden;
+    max-height: 30em;
+
+}
+
+.superChat, .currency{
+    background-color: #f6c663;
+}
+
+
+#settings {
+    width: 20vw;
+    display: flex;
+    flex-direction: column; /* 縦並びにする */
+    gap: 10px; /* アイテム間の間隔 */
+}
+
+.input-container {
+    display: flex; /* 横並びにする */
+    gap: 10px; /* アイテム間の間隔 */
+    width: 100%; /* 幅を親に合わせる */
+}
+
+#input_text {
+    flex: 1; /* 残りのスペースを占める */
+    min-width: 100px; /* 最小幅を設定 */
+}
+
+#send_btn {
+    flex-shrink: 0; /* ボタンが縮小しないようにする */
+    width: 30px; /* 固定の幅にする */
+}
+
+/* progress */
+
+progress {
+    height: 20px;
+    width: 100%; /* 幅を親に合わせる */
+    min-width: 100px; /* 最小幅を設定 */
+    border-radius: 10px;
+    border: none;
+    background: #e0e0e0;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  progress::-webkit-progress-bar {
+    background: #e0e0e0;
+    border-radius: 10px;
+  }
+
+  progress::-webkit-progress-value {
+    background: linear-gradient(to left, #f6c663, #ffe7b5);
+    border-radius: 10px;
+  }
+
+  progress::-moz-progress-bar {
+    background: linear-gradient(to left, #f6c663, #ffe7b5);
+    border-radius: 10px;
+  }
+
+  /* スクロールバー */
+
+  /* スクロールバー全体のサイズ */
+::-webkit-scrollbar {
+    width: 15px; /* 幅 */
+    height: 12px; /* 横スクロールバーの高さ */
+}
+
+/* スクロールバーのトラック部分 */
+::-webkit-scrollbar-track {
+    background-color: #f1f1f1; /* 背景色 */
+    /*border-radius: 10px; /* 丸みをつける */
+}
+
+/* スクロールバーのサム部分（ドラッグできる部分） */
+::-webkit-scrollbar-thumb {
+    background-color: #b6b9ff; /* 色 */
+    /*border-radius: 10px; /* 丸みをつける */
+    border: 3px solid #f1f1f1; /* トラックとの隙間 */
+}
+
+/* スクロールバーのサム部分（ホバー時） */
+::-webkit-scrollbar-thumb:hover {
+    background-color: #9293fe; /* ホバー時の色 */
+}
+
+.thumbnail{
+    border: solid 2px grey;
+    width: 240px;
+    max-height: 135px;
+}
