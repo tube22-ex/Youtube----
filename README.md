@@ -1,6 +1,7 @@
 ##ダウンロード
 
 1. 「[Releases](https://github.com/tube22-ex/YoutubeChatHistoryViewer/releases/latest)」にある「x.x.zip」をダウンロードし解凍
+
 ※ Codeタブから個別にダウンロードするとディレクトリ構造を再現する手間がかかるのでおすすめしません。ディレクトリ構造を再現しない限りエラーで動きません。
 
 ##チャットデータの用意
