@@ -18,7 +18,7 @@ class MaxComments {
 
     show(){
         const data = this.objReturn()
-        const HTML = `<div id="ALLsummary"><span>１枠最大コメント数： ${data["len"]}件  動画ID： ${data["dougaID"]}</span></div>`
+        const HTML = `<div id="ALLsummary"><span>1枠最大コメント数：${data["len"]}件</span><span>動画ID：${data["dougaID"]}</span></div>`
         contents.insertAdjacentHTML('afterbegin', HTML);
     }
     objReturn(){
@@ -70,7 +70,7 @@ function createTag(data){
     <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
     </a>
     <div class="summary">
-    <span class="commentLen">${data_chat.length}件<span>
+    <span class="commentLen">コメント数：${data_chat.length}件</span><span class="videoID">動画ID：${data_dougaID}</span>
     </div>
     <div class="commentsData">
     ${Chat.reverse().join("")}

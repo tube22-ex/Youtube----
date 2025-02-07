@@ -18,6 +18,15 @@ body{
     align-items: flex-start; /* 要素が上に揃う */
 }
 
+.summary, #ALLsummary {
+    display: flex;
+    gap: 15px; /* 10pxの間隔を開ける */
+}
+
+#ALLsummary{
+    margin: 0.5em 0em;
+}
+
 .timeStamp{
     background-color: #b6b9ff;
     display: block; /* ブロック要素にして高さを適切に調整 */
