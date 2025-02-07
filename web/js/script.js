@@ -16,8 +16,9 @@ send_btn.addEventListener('click', async () => {
 
 
 function createTag(data){
+    const data_chat = data["chat"]
     let Chat = [];
-    for(let i of data["chat"]){
+    for(let i of data_chat){
         let chatText = '';
         if(i["type"] == 'chat'){
             chatText = `<span class="chat">${i["chat"][1]}</span>`
@@ -39,6 +40,9 @@ function createTag(data){
     <a href="https://youtu.be/${data["dougaID"]}">
     <img src="http://img.youtube.com/vi/${data["dougaID"]}/mqdefault.jpg" class="thumbnail"></img>
     </a>
+    <div class="summary">
+    <span class="commentLen">${data_chat.length}件<span>
+    </div>
     <div class="commentsData">
     ${Chat.reverse().join("")}
     </div>
@@ -81,7 +85,6 @@ function js_function(values){
     }
     //指定サイズずつループ、最後のループのみ１つずつ。
 
-    console.log(tagArr) 
     addTag(tagArr);
 }
 
