@@ -3,6 +3,33 @@ const input_text = document.getElementById('input_text');
 const send_btn = document.getElementById('send_btn');
 const progress = document.getElementById('progress');
 
+class MaxComments {
+    constructor() {
+        this.Maxlen = 0;
+        this.MaxdougaID = '';
+    }
+
+    compareSize(len, dougaID){
+        if(len > this.Maxlen){
+            this.Maxlen = len;
+            this.MaxdougaID = dougaID;
+        }
+    }
+
+    show(){
+        const data = this.objReturn()
+        const HTML = `<div id="ALLsummary"><span>１枠最大コメント数： ${data["len"]}件  動画ID： ${data["dougaID"]}</span></div>`
+        contents.insertAdjacentHTML('afterbegin', HTML);
+    }
+    objReturn(){
+        const obj = {"len" : this.Maxlen, "dougaID" : this.MaxdougaID}
+        return obj;
+    }
+
+
+}
+
+const maxComments = new MaxComments();
 
 send_btn.addEventListener('click', async () => {
     let path = input_text.value;
@@ -16,7 +43,9 @@ send_btn.addEventListener('click', async () => {
 
 
 function createTag(data){
-    const data_chat = data["chat"]
+    const data_chat = data["chat"];
+    const data_dougaID = data["dougaID"];
+    maxComments.compareSize(data_chat.length, data_dougaID);
     let Chat = [];
     for(let i of data_chat){
         let chatText = '';
@@ -37,8 +66,8 @@ function createTag(data){
 
     const template = `
     <div class="content">
-    <a href="https://youtu.be/${data["dougaID"]}">
-    <img src="http://img.youtube.com/vi/${data["dougaID"]}/mqdefault.jpg" class="thumbnail"></img>
+    <a href="https://youtu.be/${data_dougaID}">
+    <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
     </a>
     <div class="summary">
     <span class="commentLen">${data_chat.length}件<span>
@@ -58,14 +87,12 @@ async function addTag(tag){
     let prog = 0;
 
     for (let l = 0; l < tagArr.length - (tagArr.length % size); l += size) {
-        Adjacent(tagArr[l]);
-        cnt= l;
+        for(let i = 0; i  < size; i++){
+            const index = i + l;
+            Adjacent(tagArr[index]);
+            cnt = index;
+        }
         await sleep(50);
-    }
-    // 余りの処理
-    for (let j=(tagArr.length - size) + 1; j < tagArr.length; j++) {
-        Adjacent(tagArr[j]);
-        cnt= j;
     }
 
     function Adjacent(t){
@@ -74,6 +101,7 @@ async function addTag(tag){
         progress.value = prog;
 
     }
+    maxComments.show();
 }
 
 eel.expose(js_function)
@@ -83,8 +111,7 @@ function js_function(values){
     for(let i of values){
         tagArr.push(createTag(i));
     }
-    //指定サイズずつループ、最後のループのみ１つずつ。
-
+    //指定サイズずつループ
     addTag(tagArr);
 }
 
