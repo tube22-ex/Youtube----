@@ -43,10 +43,12 @@ send_btn.addEventListener('click', async () => {
 
 
 function createTag(data){
+    console.log(data)
     const data_chat = data["chat"];
     const data_dougaID = data["dougaID"];
     maxComments.compareSize(data_chat.length, data_dougaID);
     let Chat = [];
+
     for(let i of data_chat){
         let chatText = '';
         if(i["type"] == 'chat'){
@@ -63,20 +65,45 @@ function createTag(data){
         `
         )
     }
+    let template = '';
 
-    const template = `
-    <div class="content">
-    <a href="https://youtu.be/${data_dougaID}">
-    <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
-    </a>
-    <div class="summary">
-    <span class="commentLen">コメント数：${data_chat.length}件</span><span class="videoID">動画ID：${data_dougaID}</span>
-    </div>
-    <div class="commentsData">
-    ${Chat.reverse().join("")}
-    </div>
-    </div>
-    `
+    //チャンネルデータがnullじゃなければ詳細な表示をする。
+    if(data["channelData"]){
+        const data_channelData = data["channelData"];
+        template = `
+        <div class="content">
+        <a href="https://youtu.be/${data_dougaID}">
+        <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
+        </a>
+        <div class="Data">
+            <div class="data_title">動画タイトル：${data_channelData["title"]}</div>
+            <div class="author_name">チャンネル名：${data_channelData["author_name"]}</div>
+            <div class="author_url">アカウント：${data_channelData["author_url"]}</div>
+        </div>
+        <div class="summary">
+        <span class="commentLen">コメント数：${data_chat.length}件</span><span class="videoID">動画ID：${data_dougaID}</span>
+        </div>
+        <div class="commentsData">
+        ${Chat.reverse().join("")}
+        </div>
+        </div>
+        `
+    }else{
+        template = `
+        <div class="content">
+        <a href="https://youtu.be/${data_dougaID}">
+        <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
+        </a>
+        <div class="summary">
+        <span class="commentLen">コメント数：${data_chat.length}件</span><span class="videoID">動画ID：${data_dougaID}</span>
+        </div>
+        <div class="commentsData">
+        ${Chat.reverse().join("")}
+        </div>
+        </div>
+        `
+    }
+
     return template;
 }
 
@@ -111,7 +138,7 @@ function js_function(values){
     for(let i of values){
         tagArr.push(createTag(i));
     }
-    //指定サイズずつループ
+    console.log(values);
     addTag(tagArr);
 }
 

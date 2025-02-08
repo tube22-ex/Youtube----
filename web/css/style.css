@@ -4,7 +4,7 @@ body{
 }
 
 #contents{
-    width: 70%;
+    width: 78vw;
     font-size: 25px;
 }
 
@@ -25,8 +25,12 @@ body{
 
 #ALLsummary{
     margin: 0.5em 0em;
+
 }
 
+.summary{
+
+}
 .timeStamp{
     background-color: #b6b9ff;
     display: block; /* ブロック要素にして高さを適切に調整 */
@@ -60,6 +64,7 @@ body{
     display: flex;
     flex-direction: column; /* 縦並びにする */
     gap: 10px; /* アイテム間の間隔 */
+    margin: 0px 1vw 0px 0px;
 }
 
 .input-container {
@@ -137,4 +142,18 @@ progress {
     border: solid 2px grey;
     width: 240px;
     max-height: 135px;
+}
+
+
+/* data装飾 */
+
+.Data {
+    border: solid 4px #ffe7b5;
+    overflow-x: auto; /* scroll ではなく auto にするのがおすすめ */
+    overflow-y: hidden; /* `none` は無効なので `hidden` にする */
+    white-space: nowrap; /* テキストの折り返しを防ぐ */
+}
+
+.data_title, .author_name{
+    border-bottom: solid 3px #ffe7b5;
 }
