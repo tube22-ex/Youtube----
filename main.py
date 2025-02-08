@@ -3,7 +3,9 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 import pytz
+import requests
 
+#nuitka --onefile --standalone main.py
 class YoutubeChatHistory:
     def __init__(self, input_folder):
         self.input_folder = Path(input_folder)
@@ -68,7 +70,7 @@ class YoutubeChatHistory:
                     continue
 
                 if video_id not in video_data:
-                    video_data[video_id] = {'date': timestamp, 'dougaID': video_id, 'chat': []}
+                    video_data[video_id] = {'date': timestamp, 'dougaID': video_id, 'chat': [], 'channelData' : self.get_channel_id(video_id)}
                 
                 chat_text = row['チャット テキスト']
                 # print(row)
@@ -147,8 +149,31 @@ class YoutubeChatHistory:
 
         return formatted_time
 
+    def get_channel_id(self, video_id):
+        
+        url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        response = requests.get(url)
+    
+        if response.status_code == 200:
+            data = response.json()
+            channel_url = data.get("author_url", "")
+            if "youtube.com/@" in channel_url:
+                channel_id = channel_url.split("/")[-1]
+                data["author_url"] = channel_id ##@の先からに書き換え
+                return data
+            else:
+                return None
+        else:
+            #print("Error:", response.status_code)
+            #404が帰ってきた場合、手元にある動画IDを配列にセットしておき、そこから探索することによって消えたチャンネルでも特定できるようにする（仮）
+            #Archive_dougaID = [{dougaID: xx, channel_id : xx, channelName : xx}]
+            return None
+    
+
     def jsonExport(self):
         return self.json_result
+
+
 
 #ここからeel
 eel.init('web')
