@@ -43,7 +43,6 @@ send_btn.addEventListener('click', async () => {
 
 
 function createTag(data){
-    console.log(data)
     const data_chat = data["chat"];
     const data_dougaID = data["dougaID"];
     maxComments.compareSize(data_chat.length, data_dougaID);
