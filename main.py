@@ -6,11 +6,13 @@ import pytz
 import requests
 
 #nuitka --onefile --standalone main.py
+#get_channel_idを呼び出すたびに１本ずつ開いて閉じてを繰り返しているので、ファイルの開閉が多すぎる
 class YoutubeChatHistory:
     def __init__(self, input_folder):
         self.input_folder = Path(input_folder)
         self.output_csv = os.path.join(self.input_folder ,'chat.csv')
         self.output_json = os.path.join(self.input_folder ,'output.json')
+        self.cashe_file = os.path.join(self.input_folder ,'cashe.json')
         self.all_rows = []
         self.json_result = []
 
@@ -19,8 +21,8 @@ class YoutubeChatHistory:
         dir_g = self.input_folder.iterdir()
         for x in dir_g:
             file_name = x.name
-            if file_name == 'chat.csv' or file_name == 'output.json':
-                continue  # "chat.csv" と "output.json" をスキップ
+            if file_name == 'chat.csv' or file_name == 'output.json' or file_name == 'cashe.json':
+                continue  # "chat.csv" と "output.json" と "cache.json"をスキップ
 
             # それ以外のファイルに対する処理
             with open(self.input_folder / file_name, 'r', encoding='utf-8') as file:
@@ -149,8 +151,41 @@ class YoutubeChatHistory:
 
         return formatted_time
 
+    def check_or_create(self):
+        casheFile = self.cashe_file
+        if not os.path.exists(casheFile):
+            with open(casheFile, 'w') as f:
+                pass
+            print("casheファイルが作成されました。" + casheFile)
+
+    def Read(self):
+        with open(self.cashe_file, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+            # print(content)
+            if not content:
+                # 空のファイルの場合は初期値を返す（ここでは空の辞書）
+                return []
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                # JSONデコードエラーが発生した場合の処理
+                return []
+
+    def Write(self, data):
+        with open(self.cashe_file, 'w', encoding='utf-8') as json_file:
+            json.dump(data, json_file, ensure_ascii=False, indent=4)  
+        pass
+
+
     def get_channel_id(self, video_id):
         
+        JsonResult = self.Read()
+
+        #Cacheにあれば返す
+        for item in JsonResult:
+            if item.get('id') == video_id:
+                return item["data"]
+
         url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
         response = requests.get(url)
     
@@ -160,6 +195,14 @@ class YoutubeChatHistory:
             if "youtube.com/@" in channel_url:
                 channel_id = channel_url.split("/")[-1]
                 data["author_url"] = channel_id ##@の先からに書き換え
+                JsonResult.append(
+                    {
+                        "id":video_id,
+                        "data":data
+                    }
+                )
+                # JSONに書き戻す
+                self.Write(JsonResult)
                 return data
             else:
                 return None
@@ -168,11 +211,27 @@ class YoutubeChatHistory:
             #404が帰ってきた場合、手元にある動画IDを配列にセットしておき、そこから探索することによって消えたチャンネルでも特定できるようにする（仮）
             #Archive_dougaID = [{dougaID: xx, channel_id : xx, channelName : xx}]
             return None
-    
 
     def jsonExport(self):
         return self.json_result
 
+class Cache:
+    def __init__(self, input_folder):
+        self.input_folder = Path(input_folder)
+        self.cashe_file = os.path.join(self.input_folder ,'cashe.json')
+
+    def check_or_create(self):
+        casheFile = self.cashe_file
+        if not os.path.exists(casheFile):
+            with open(casheFile, 'w') as f:
+                pass
+        print("casheファイルが作成されました。" + casheFile)
+
+    def Read(self):
+        pass
+
+    def Write(self):
+        pass
 
 
 #ここからeel
@@ -182,12 +241,11 @@ eel.init('web')
 def python_processor_eel(values):
     """JS側の実行ボタンで実行。inputに貼り付けた絶対パスを受け取る。"""
     print(values)
-    processor = YoutubeChatHistory(
-        input_folder=values
-    )
-
+    processor = YoutubeChatHistory(values)
+    #クラスにパスを投げる
     processor.search_files()
     processor.save_csv()
+    processor.check_or_create()
     processor.organize_data()
     result = processor.jsonExport()
     eel.js_function(result)  # グローバル変数を渡す

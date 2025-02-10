@@ -31,80 +31,67 @@ class MaxComments {
 
 const maxComments = new MaxComments();
 
-send_btn.addEventListener('click', async () => {
-    let path = input_text.value;
+const fetchComments = async (path) => {
     contents.innerHTML = '';
     try {
         await eel.python_processor_eel(path)();
     } catch (error) {
         console.error("呼び出し失敗:", error);
     }
-});
+};
 
 
-function createTag(data){
-    const data_chat = data["chat"];
-    const data_dougaID = data["dougaID"];
+send_btn.addEventListener('click', () => fetchComments(input_text.value));
+
+
+function createTag(data) {
+    const { chat: data_chat, dougaID: data_dougaID, channelData: data_channelData } = data;
+
+    // コメントサイズの比較
     maxComments.compareSize(data_chat.length, data_dougaID);
-    let Chat = [];
 
-    for(let i of data_chat){
+    // チャットのテンプレート作成
+    const Chat = data_chat.map(i => {
         let chatText = '';
-        if(i["type"] == 'chat'){
-            chatText = `<span class="chat">${i["chat"][1]}</span>`
-        }else if(i["type"] == "superChat"){
-            chatText = `<span class="chat"><span class="superChat">${Number(i["superchat"][0])/1000000}</span><span class="currency">${i["superchat"][1]}</span></span>`
+        if (i["type"] === 'chat') {
+            chatText = `<span class="chat">${i["chat"][1]}</span>`;
+        } else if (i["type"] === "superChat") {
+            chatText = `<span class="chat"><span class="superChat">${Number(i["superchat"][0]) / 1000000}</span><span class="currency">${i["superchat"][1]}</span></span>`;
         }
 
-        Chat.push(`
+        return `
         <div class="comment">
-        <span class="timeStamp">${i["timeStamp"]}</span>
-        ${chatText}
+            <span class="timeStamp">${i["timeStamp"]}</span>
+            ${chatText}
         </div>
-        `
-        )
-    }
-    let template = '';
+        `;
+    }).reverse().join("");  // 逆順にして一度にjoinで結合
 
-    //チャンネルデータがnullじゃなければ詳細な表示をする。
-    if(data["channelData"]){
-        const data_channelData = data["channelData"];
-        template = `
-        <div class="content">
+    // チャンネルデータがあれば詳細な表示
+    let template = `
+    <div class="content">
         <a href="https://youtu.be/${data_dougaID}">
-        <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
+            <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail" />
         </a>
+        <div class="summary">
+            <span class="commentLen">コメント数：${data_chat.length}件</span>
+            <span class="videoID">動画ID：${data_dougaID}</span>
+        </div>
+        <div class="commentsData">
+            ${Chat}
+        </div>
+        ${data_channelData ? `
         <div class="Data">
             <div class="data_title">動画タイトル：${data_channelData["title"]}</div>
             <div class="author_name">チャンネル名：${data_channelData["author_name"]}</div>
             <div class="author_url">アカウント：${data_channelData["author_url"]}</div>
         </div>
-        <div class="summary">
-        <span class="commentLen">コメント数：${data_chat.length}件</span><span class="videoID">動画ID：${data_dougaID}</span>
-        </div>
-        <div class="commentsData">
-        ${Chat.reverse().join("")}
-        </div>
-        </div>
-        `
-    }else{
-        template = `
-        <div class="content">
-        <a href="https://youtu.be/${data_dougaID}">
-        <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail"></img>
-        </a>
-        <div class="summary">
-        <span class="commentLen">コメント数：${data_chat.length}件</span><span class="videoID">動画ID：${data_dougaID}</span>
-        </div>
-        <div class="commentsData">
-        ${Chat.reverse().join("")}
-        </div>
-        </div>
-        `
-    }
-
+        ` : ''}
+    </div>
+    `;
     return template;
 }
+
 
 async function addTag(tag){
     const tagArr = tag;
@@ -130,17 +117,13 @@ async function addTag(tag){
     maxComments.show();
 }
 
-eel.expose(js_function)
-function js_function(values){
+eel.expose(js_function);
+function js_function(values) {
     values.sort((a, b) => new Date(a.date) - new Date(b.date));
-    const tagArr = [];
-    for(let i of values){
-        tagArr.push(createTag(i));
-    }
+    const tagArr = values.map(i => createTag(i));
     console.log(values);
     addTag(tagArr);
 }
-
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
