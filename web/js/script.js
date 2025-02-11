@@ -56,7 +56,7 @@ function createTag(data) {
         if (i["type"] === 'chat') {
             chatText = `<span class="chat">${i["chat"][1]}</span>`;
         } else if (i["type"] === "superChat") {
-            chatText = `<span class="chat"><span class="superChat">${Number(i["superchat"][0]) / 1000000}</span><span class="currency">${i["superchat"][1]}</span></span>`;
+            chatText = `<span class="chat"><span class="currency">￥</span><span class="superChat">${Number(i["superchat"][0]) / 1000000}</span></span>`;
         }
 
         return `
@@ -73,13 +73,6 @@ function createTag(data) {
         <a href="https://youtu.be/${data_dougaID}">
             <img src="http://img.youtube.com/vi/${data_dougaID}/mqdefault.jpg" class="thumbnail" />
         </a>
-        <div class="summary">
-            <span class="commentLen">コメント数：${data_chat.length}件</span>
-            <span class="videoID">動画ID：${data_dougaID}</span>
-        </div>
-        <div class="commentsData">
-            ${Chat}
-        </div>
         ${data_channelData ? `
         <div class="Data">
             <div class="data_title">動画タイトル：${data_channelData["title"]}</div>
@@ -87,6 +80,13 @@ function createTag(data) {
             <div class="author_url">アカウント：${data_channelData["author_url"]}</div>
         </div>
         ` : ''}
+        <div class="summary">
+            <span class="commentLen">コメント数：${data_chat.length}件</span>
+            <span class="videoID">動画ID：${data_dougaID}</span>
+        </div>
+        <div class="commentsData">
+            ${Chat}
+        </div>
     </div>
     `;
     return template;
@@ -95,7 +95,7 @@ function createTag(data) {
 
 async function addTag(tag){
     const tagArr = tag;
-    const size = 50;
+    const size = 15;
     let cnt = 0;
     let prog = 0;
 
