@@ -1,257 +1,244 @@
-import eel, os, csv, json
+import eel, json
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 import pytz
-import requests
+import pandas as pd
+import asyncio
+import aiohttp
+import orjson # 高速 JSON ライブラリ orjson をインポート
 
-#nuitka --onefile --standalone main.py
-#get_channel_idを呼び出すたびに１本ずつ開いて閉じてを繰り返しているので、ファイルの開閉が多すぎる
 class YoutubeChatHistory:
     def __init__(self, input_folder):
         self.input_folder = Path(input_folder)
-        self.output_csv = os.path.join(self.input_folder ,'chat.csv')
-        self.output_json = os.path.join(self.input_folder ,'output.json')
-        self.cashe_file = os.path.join(self.input_folder ,'cashe.json')
+        self.output_csv = self.input_folder / 'chat.csv'
+        self.output_json = self.input_folder / 'output.json'
+        self.cache_file = self.input_folder / 'cache.json'
         self.all_rows = []
         self.json_result = []
+        self.cache_data = self.read_cache()
+        # self.executor = ThreadPoolExecutor(max_workers=os.cpu_count()) # ThreadPoolExecutor は削除
 
     def search_files(self):
-        """指定されたフォルダ内のCSVファイルを検索し、データを集める"""
-        dir_g = self.input_folder.iterdir()
-        for x in dir_g:
-            file_name = x.name
-            if file_name == 'chat.csv' or file_name == 'output.json' or file_name == 'cashe.json':
-                continue  # "chat.csv" と "output.json" と "cache.json"をスキップ
+        csv_files = list(self.input_folder.glob("*.csv"))
+        combined_data = []
+        header = None
+        expected_columns = None
 
-            # それ以外のファイルに対する処理
-            with open(self.input_folder / file_name, 'r', encoding='utf-8') as file:
-                reader = csv.reader(file)
-                header = next(reader)  # ヘッダーは最初に読み込んでおく
-                if not self.all_rows:
-                    self.all_rows.append(header)  # 最初のCSVファイルからヘッダーを追加
-                for row in reader:
-                    # 空の要素を削除
-                    cleaned_row = [element for element in row if element.strip() != '']
-                    self.all_rows.append(cleaned_row)  # 各ファイルのデータ行を追加
+        for file_path in csv_files:
+            file_name = file_path.name
+            if file_name in ('chat.csv', 'output.json', 'cache.json'):
+                continue
+
+            try:
+                # 【高速化 1-a, 1-b, 1-c を組み合わせ、データ型と使用列を明示的に指定】
+                df = pd.read_csv(
+                    file_path,
+                    encoding='utf-8',
+                    low_memory=False, # low_memory=False を指定 (メモリを多く使うが、高速になる可能性)
+                    dtype={ # データ型を明示的に指定 (更なる高速化)
+                        '動画 ID': str,
+                        'チャット ID': str,
+                        'チャット作成タイムスタンプ': str,
+                        'チャット テキスト': str,
+                        'チャンネル ID': str,
+                        '価格': str # 価格も文字列として読み込む例 (必要に応じて適切な型に)
+                    },
+                    usecols=[ # 使用する列を限定 (不要な列を読み込まない)
+                        '動画 ID',
+                        'チャット ID',
+                        'チャット作成タイムスタンプ',
+                        'チャット テキスト',
+                        'チャンネル ID',
+                        '価格'
+                    ]
+                )
+            except pd.errors.ParserError as e:
+                print(f"エラー：CSVファイル {file_path} の解析に失敗しました。ファイル形式を確認してください。\n{e}")
+                continue
+
+            current_columns = df.columns.tolist()
+            if header is None and not df.empty:
+                header = current_columns
+                expected_columns = len(header)
+            elif expected_columns is not None and len(current_columns) != expected_columns:
+                print(f"エラー：CSVファイル {file_path} の列数がヘッダーと一致しません。スキップします。")
+                print(f"  - ヘッダー列数: {expected_columns}, ファイル列数: {len(current_columns)}")
+                continue
+
+            combined_data.append(df)
+
+        if combined_data:
+            combined_df = pd.concat(combined_data, ignore_index=True)
+            combined_df = combined_df.dropna(how='all')
+            if header:
+                self.all_rows = [header] + combined_df.values.tolist()
 
     def save_csv(self):
-        """収集したデータをCSVファイルに保存"""
-        with open(self.output_csv, 'w', newline='', encoding='utf-8') as output_csv:
-            writer = csv.writer(output_csv)
-            all = self.all_rows
-            filtered_list = list(filter(None, all))
-            writer.writerows(filtered_list)
+        if not self.all_rows:
+            print("警告：保存するデータがありません。")
+            return
 
-    def organize_data(self):
-        """csvをjson形式に変換"""
-        result = []
-        errorResult = []
+        header_len = len(self.all_rows[0])
+        for row in self.all_rows[1:]:
+            if len(row) != header_len:
+                raise ValueError(f"データ行の列数がヘッダーと一致しません。Header columns: {header_len}, Data row columns: {len(row)}")
 
-        with open(self.output_csv, 'r', encoding='utf-8') as file:
-            # 最初に行数を数える
-            total_lines = sum(1 for _ in file)
-            
-            # ファイルを最初に戻してからDictReaderを使用
-            file.seek(0)
+        df_output = pd.DataFrame(self.all_rows[1:], columns=self.all_rows[0])
+        # 【高速化 2-a: compression='gzip' を指定 (gzip圧縮) 】
+        df_output.to_csv(
+            self.output_csv,
+            index=False,
+            encoding='utf-8',
+            chunksize=10000,
+            compression='gzip' # gzip 圧縮でファイルサイズを削減、IO 速度向上を狙う
+        )
 
-            reader = csv.DictReader(file)
-            
-            cnt = 0
-            video_data = {}
+    async def async_get_channel_id(self, video_id, session):
+        """非同期でチャンネルIDを取得 (キャッシュ利用)"""
+        if video_id in self.cache_data:
+            return self.cache_data[video_id]
 
-            for row in tqdm(reader, desc="Processing rows", unit="row", total=total_lines-1):  # ヘッダー行を引くために1を引く
-                cnt += 1
-                
-                video_id = row['チャット テキスト'] if len(row['動画 ID']) < 11 else row['動画 ID']
-                #11桁じゃない場合チャットテキストに入っているのでそれを採用
-                timestamp = self.convert_utc_to_jst(row['チャット作成タイムスタンプ'])
+        url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        try:
+            async with session.get(url, timeout=10) as response: # タイムアウト設定
+                if response.status == 200:
+                    # 【高速化: JSON パースに orjson を使用 (高速化が期待できる場合) 】
+                    # data = await response.json() # 標準 json
+                    text = await response.text()
+                    data = orjson.loads(text) # orjson を使用
+                    channel_url = data.get("author_url", "")
+                    if "youtube.com/@" in channel_url:
+                        data["author_url"] = channel_url.split("/")[-1]
+                    self.cache_data[video_id] = data
+                    return data
+        except aiohttp.ClientError as e:
+            print(f"API request error for video ID {video_id}: {e}")
+        except asyncio.TimeoutError:
+            print(f"API request timeout for video ID {video_id}")
+        return None
 
-                if timestamp is None:  # 変換できない場合はスキップ
-                    errorResult.append(f"Skipping row {cnt} due to invalid timestamp.")
+
+    async def organize_data(self):
+        """CSVをJSON形式に変換 (非同期APIリクエスト対応)"""
+        error_log = []
+        video_data = {}
+
+        try:
+            # 【高速化 2-a: compression='gzip' を指定 (gzip圧縮) 】
+            df = pd.read_csv(self.output_csv, encoding='utf-8', compression='gzip') # save_csv で gzip 圧縮したので、読み込み時にも compression='gzip' を指定
+        except FileNotFoundError:
+            print(f"エラー：CSVファイル {self.output_csv} が見つかりません。")
+            return
+
+        async with aiohttp.ClientSession() as session:
+            tasks = []
+            # 【iterrows() の代わりに values.tolist() + zip() で高速化 (DataFrame -> List 変換 + zip 処理) 】
+            for index, row in tqdm(enumerate(df.values.tolist()), total=len(df), desc="Processing rows", unit="row"): # enumerate を使用
+                row_dict = dict(zip(df.columns, row)) #  zip で辞書化
+                video_id = row_dict['動画 ID'] if len(row_dict['動画 ID']) == 11 else row_dict['チャット テキスト']
+                timestamp = self.convert_utc_to_jst(row_dict['チャット作成タイムスタンプ'])
+
+                if timestamp is None:
+                    error_log.append(f"Skipping row {index} due to invalid timestamp.")
                     continue
 
                 if video_id not in video_data:
-                    video_data[video_id] = {'date': timestamp, 'dougaID': video_id, 'chat': [], 'channelData' : self.get_channel_id(video_id)}
-                
-                chat_text = row['チャット テキスト']
-                # print(row)
-                
+                    video_data[video_id] = {
+                        'date': timestamp,
+                        'dougaID': video_id,
+                        'chat': [],
+                        'channelData': None
+                    }
+                    tasks.append(self.async_get_channel_id(video_id, session))
 
-                # 正しい形式なら分割処理を実行
-                if chat_text is None or chat_text == '':
-                    continue
+                chat_text = row_dict['チャット テキスト'] or ''
+                chat_data = {
+                    'chatID': row_dict['チャット ID'],
+                    'channelID': row_dict['チャンネル ID'],
+                    'timeStamp': timestamp,
+                    'chat': self.clean_chat_text_sync(chat_text),
+                    'type': 'superChat' if pd.notna(row_dict.get('価格')) and int(row_dict.get('価格', 0)) > 0 else 'chat',
+                    'superchat': [row_dict['価格'], row_dict['動画 ID']] if pd.notna(row_dict.get('価格')) and int(row_dict.get('価格', 0)) > 0 else []
+                }
+                video_data[video_id]['chat'].append(chat_data)
 
-                if chat_text.startswith('{"text":') and chat_text.endswith('}'):
-                    try:
-                        # chat_text を JSON としてパース
-                        text = self.clean_chat_text(chat_text)
-                        chat_data = {
-                            'chatID': row['チャット ID'],
-                            'channelID': row['チャンネル ID'],
-                            'timeStamp': timestamp,
-                            'chat': ["text", text],
-                            'type':'chat',
-                            'currency': []
-                        }
-                        video_data[video_id]['chat'].append(chat_data)
-                    except json.JSONDecodeError:
-                        errorResult.append(f"Warning: JSONデコードエラーが発生しました (chatテキスト: {chat_text})")
-                    except KeyError:
-                        errorResult.append(f"Warning: 'text' フィールドが見つかりません (chatテキスト: {chat_text})")
-                else:
-                    if(int(row['価格']) > 0):
-                        chat_data = {
-                            'chatID': row['チャット ID'],
-                            'channelID': row['チャンネル ID'],
-                            'timeStamp': timestamp,
-                            'chat': ["text", ''],
-                            'type':'superChat',
-                            'superchat': [row['価格'], row['動画 ID']]
-                        }
-                        video_data[video_id]['chat'].append(chat_data)
-                    else:
-                        errorResult.append(f"Warning: 不正な形式のチャットテキストがあります (chatテキスト: {chat_text}){cnt}")
+            channel_data_results = await asyncio.gather(*tasks)
+            video_ids_for_channel_data = list(video_data.keys())
+            for video_id, channel_data in zip(video_ids_for_channel_data, channel_data_results):
+                if video_id in video_data:
+                    video_data[video_id]['channelData'] = channel_data
 
-            # video_data をリスト形式に変換
-            result = list(video_data.values())
+        # 【高速化 3-a: indent 削除、orjson で JSON 書き出し (最速) 】
+        with self.output_json.open('wb') as json_file: # バイナリモードで open
+            json_file.write(orjson.dumps(list(video_data.values()))) # orjson.dumps を使用 (indent 削除)
 
-        # JSON形式で出力
-        with open(self.output_json, 'w', encoding='utf-8') as json_file:
-            json.dump(result, json_file, ensure_ascii=False, indent=4)
+        if error_log:
+            print("\n".join(error_log))
 
-        print("\n".join(errorResult))#エラーログをまとめて最後に出力してプログレス分割を回避
-
+        self.json_result = list(video_data.values())
         print(f"JSONファイルが {self.output_json} として保存されました。")
-        self.json_result = result  # グローバル変数に結果を格納
 
-    def clean_chat_text(self, chat_text):
-        chat_text = f'[{chat_text}]'  # 最初と最後に '[]' を追加
-        chat_dict = json.loads(chat_text)
-        text = ''
-        for i in chat_dict:
-            text += i.get("text", "")
-        #絵文字が使われていると分割されるので複数のtextをつなげる
-        return text
+
+    def clean_chat_text(self, chat_text): # clean_chat_text は削除
+        raise NotImplementedError("clean_chat_text は clean_chat_text_sync に置き換えられました。")
+
+    def clean_chat_text_sync(self, chat_text):
+        """チャットテキストのクリーニングを同期的に実行"""
+        try:
+            chat_dict_list = json.loads(f'[{chat_text}]')
+            text = ''.join(item.get("text", "") for item in chat_dict_list)
+            return ["text", text] # type情報を付与
+        except json.JSONDecodeError:
+            return ["text", ""] # type情報を付与
+
 
     def convert_utc_to_jst(self, utc_time_str):
-        """UTCのdatetimeオブジェクトに変換"""
+        """UTCからJSTへの変換 (datetime.fromisoformat を利用) - 最速版を維持"""
         try:
-            utc_time = datetime.fromisoformat(utc_time_str.replace("Z", "+00:00"))  # 'Z' を '+00:00' に置き換え
-        except ValueError as e:
-            print(f"タイムスタンプのフォーマットがおかしいよ: {utc_time_str} - Error: {e}")
+            utc_time = datetime.fromisoformat(utc_time_str.replace("Z", "+00:00")) # fromisoformat が最速
+            return utc_time.astimezone(pytz.timezone('Asia/Tokyo')).strftime('%Y/%m/%d %H:%M:%S.%f')[:-3]
+        except ValueError:
             return None
 
-        # JST (日本標準時) に変換
-        jst = pytz.timezone('Asia/Tokyo')
-        jst_time = utc_time.astimezone(jst)
 
-        # 指定された形式でフォーマット
-        formatted_time = jst_time.strftime('%Y/%m/%d %H:%M:%S.%f')[:-3]  # 小数点以下3桁に切り捨て
-
-        return formatted_time
-
-    def check_or_create(self):
-        casheFile = self.cashe_file
-        if not os.path.exists(casheFile):
-            with open(casheFile, 'w') as f:
-                pass
-            print("casheファイルが作成されました。" + casheFile)
-
-    def Read(self):
-        with open(self.cashe_file, 'r', encoding='utf-8') as f:
-            content = f.read().strip()
-            # print(content)
-            if not content:
-                # 空のファイルの場合は初期値を返す（ここでは空の辞書）
-                return []
+    def read_cache(self):
+        if self.cache_file.exists():
             try:
-                return json.loads(content)
+                with self.cache_file.open('r', encoding='utf-8') as f:
+                    cache_list = json.load(f)
+                    return {item['id']: item['data'] for item in cache_list}
             except json.JSONDecodeError:
-                # JSONデコードエラーが発生した場合の処理
-                return []
+                return {}
+        return {}
 
-    def Write(self, data):
-        with open(self.cashe_file, 'w', encoding='utf-8') as json_file:
-            json.dump(data, json_file, ensure_ascii=False, indent=4)  
-        pass
+    def write_cache(self):
+        # 【高速化: JSON 書き込みにも orjson を使用 (書き込み頻度が高い場合は効果あり) 】
+        cache_list_for_json = [{'id': video_id, 'data': data} for video_id, data in self.cache_data.items()]
+        with self.cache_file.open('wb') as json_file: # バイナリモードで open
+             json_file.write(orjson.dumps(cache_list_for_json)) # orjson.dumps を使用 (indent 削除)
 
 
-    def get_channel_id(self, video_id):
-        
-        JsonResult = self.Read()
+    def get_channel_id(self, video_id): # get_channel_id は削除
+        raise NotImplementedError("get_channel_id は非同期関数 async_get_channel_id に置き換えられました。")
 
-        #Cacheにあれば返す
-        for item in JsonResult:
-            if item.get('id') == video_id:
-                return item["data"]
-
-        url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
-        response = requests.get(url)
-    
-        if response.status_code == 200:
-            data = response.json()
-            channel_url = data.get("author_url", "")
-            if "youtube.com/@" in channel_url:
-                channel_id = channel_url.split("/")[-1]
-                data["author_url"] = channel_id ##@の先からに書き換え
-                JsonResult.append(
-                    {
-                        "id":video_id,
-                        "data":data
-                    }
-                )
-                # JSONに書き戻す
-                self.Write(JsonResult)
-                return data
-            else:
-                return None
-        else:
-            #print("Error:", response.status_code)
-            #404が帰ってきた場合、手元にある動画IDを配列にセットしておき、そこから探索することによって消えたチャンネルでも特定できるようにする（仮）
-            #Archive_dougaID = [{dougaID: xx, channel_id : xx, channelName : xx}]
-            return None
 
     def jsonExport(self):
         return self.json_result
 
-class Cache:
-    def __init__(self, input_folder):
-        self.input_folder = Path(input_folder)
-        self.cashe_file = os.path.join(self.input_folder ,'cashe.json')
 
-    def check_or_create(self):
-        casheFile = self.cashe_file
-        if not os.path.exists(casheFile):
-            with open(casheFile, 'w') as f:
-                pass
-        print("casheファイルが作成されました。" + casheFile)
-
-    def Read(self):
-        pass
-
-    def Write(self):
-        pass
-
-
-#ここからeel
+# --- eel の処理 ---
 eel.init('web')
 
 @eel.expose
 def python_processor_eel(values):
-    """JS側の実行ボタンで実行。inputに貼り付けた絶対パスを受け取る。"""
+    """JSから受け取ったパスを処理 (非同期処理対応)"""
     print(values)
     processor = YoutubeChatHistory(values)
-    #クラスにパスを投げる
     processor.search_files()
     processor.save_csv()
-    processor.check_or_create()
-    processor.organize_data()
-    result = processor.jsonExport()
-    eel.js_function(result)  # グローバル変数を渡す
+    asyncio.run(processor.organize_data())
+    processor.write_cache()
+    eel.js_function(processor.jsonExport())
 
-eel.start(
-    'index.html',
-    mode='default'
-)
-
+eel.start('index.html', mode='default')

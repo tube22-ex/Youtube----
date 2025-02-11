@@ -95,7 +95,7 @@ function createTag(data) {
 
 async function addTag(tag){
     const tagArr = tag;
-    const size = 5;
+    const size = 50;
     let cnt = 0;
     let prog = 0;
 
