@@ -4,6 +4,8 @@
 
 ※ Codeタブから個別にダウンロードするとディレクトリ構造を再現する手間がかかるのでおすすめしません。ディレクトリ構造を再現しない限りエラーで動きません。
 
+「<>Code」> 「Download ZIP」を押してダウンロードしても入手可能です。
+
 ##チャットデータの用意
 1. [Google Takeout](https://takeout.google.com/settings/takeout/custom/youtube
 ) で「YouTubeのすべてのデータが含まれます」をクリックし「チャット」にのみチェックを入れてエクスポートを作成
